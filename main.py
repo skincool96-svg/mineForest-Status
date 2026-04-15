@@ -9,7 +9,7 @@ TOKEN = os.getenv("TOKEN")  # Railway env variable
 SERVER_NAME = "MineForest"
 JAVA_IP = "play.mineforest.xyz"
 BEDROCK_IP = "play.mineforest.xyz"
-PORT = 25565
+PORT = 45576
 
 CHANNEL_ID = 1475865990830231672
 ROLE_ID = 1475865990272127161
