@@ -2,14 +2,14 @@ import discord
 from discord.ext import commands, tasks
 from mcstatus import JavaServer, BedrockServer
 import os
+import asyncio
 
 # ================== CONFIG ==================
-TOKEN = os.getenv("TOKEN")  # Railway env variable
+TOKEN = os.getenv("TOKEN")
 
 SERVER_NAME = "MineForest"
-JAVA_IP = "play.mineforest.xyz"
-BEDROCK_IP = "play.mineforest.xyz"
-PORT = 45576
+JAVA_IP = "play.mineforest.xyz:45576"  # ✅ correct port
+BEDROCK_IP = "play.mineforest.xyz:45576"
 
 CHANNEL_ID = 1475865990830231672
 ROLE_ID = 1475865990272127161
@@ -26,11 +26,11 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 status_message = None
 last_online = True
 
-# 🔹 FETCH JAVA
+# 🔹 FETCH JAVA (fixed async + timeout)
 async def get_java():
     try:
-        server = JavaServer.lookup(f"{JAVA_IP}:{PORT}")
-        s = server.status()
+        server = JavaServer.lookup(JAVA_IP)
+        s = await asyncio.wait_for(server.async_status(), timeout=5)
 
         players = "No players online"
         if s.players.sample:
@@ -42,14 +42,15 @@ async def get_java():
             "ping": round(s.latency),
             "list": players
         }
-    except:
+    except Exception as e:
+        print("Java error:", e)
         return {"online": False}
 
 # 🔹 FETCH BEDROCK
 async def get_bedrock():
     try:
-        server = BedrockServer.lookup(f"{BEDROCK_IP}:{PORT}")
-        s = server.status()
+        server = BedrockServer.lookup(BEDROCK_IP)
+        s = await asyncio.wait_for(server.async_status(), timeout=5)
 
         return {
             "online": True,
@@ -82,7 +83,7 @@ async def build_status():
     if bedrock["online"]:
         embed.add_field(name="Bedrock", value=bedrock["players"], inline=True)
 
-    embed.set_footer(text="MineForest • Auto Live")
+    embed.set_footer(text="MineForest • Live")
 
     # 🔔 Alerts
     channel = bot.get_channel(CHANNEL_ID)
@@ -99,8 +100,8 @@ async def build_status():
 # 🔹 PLAYERS EMBED
 async def build_players():
     try:
-        server = JavaServer.lookup(f"{JAVA_IP}:{PORT}")
-        s = server.status()
+        server = JavaServer.lookup(JAVA_IP)
+        s = await asyncio.wait_for(server.async_status(), timeout=5)
 
         if s.players.sample:
             names = ", ".join([p.name for p in s.players.sample])
@@ -111,24 +112,24 @@ async def build_players():
             description=f"**Players ({s.players.online}):**\n\n{names}\n\n`{JAVA_IP}`",
             color=0x2ecc71
         )
-
     except:
         return discord.Embed(
             description="🔴 Server Offline",
             color=0xe74c3c
         )
 
-# 🔘 BUTTON VIEW
+# 🔘 BUTTON VIEW (fixed)
 class RefreshView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="Refresh", style=discord.ButtonStyle.green, emoji="🔄")
     async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         embed = await build_status()
-        await interaction.response.edit_message(embed=embed, view=self)
+        await interaction.message.edit(embed=embed, view=self)
 
-# 🔹 COMMANDS
+# 🔹 PREFIX COMMANDS
 @bot.command()
 async def status(ctx):
     embed = await build_status()
@@ -139,16 +140,18 @@ async def players(ctx):
     embed = await build_players()
     await ctx.send(embed=embed)
 
-# 🔹 SLASH COMMANDS
+# 🔹 SLASH COMMANDS (FIXED)
 @bot.tree.command(name="status", description="Check server status")
 async def slash_status(interaction: discord.Interaction):
+    await interaction.response.defer()
     embed = await build_status()
-    await interaction.response.send_message(embed=embed, view=RefreshView())
+    await interaction.followup.send(embed=embed, view=RefreshView())
 
 @bot.tree.command(name="players", description="Show players")
 async def slash_players(interaction: discord.Interaction):
+    await interaction.response.defer()
     embed = await build_players()
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
 
 # 🔹 AUTO UPDATE
 @tasks.loop(seconds=UPDATE_INTERVAL)
@@ -170,7 +173,6 @@ async def auto_update():
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-
     try:
         await bot.tree.sync()
     except Exception as e:
