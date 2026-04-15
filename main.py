@@ -11,7 +11,7 @@ BEDROCK_IP = "play.mineforest.xyz"
 PORT = 25565
 
 CHANNEL_ID = 1475865990830231672
-ROLE_ID = 123456789012345678
+ROLE_ID = 1475865990272127161
 
 UPDATE_INTERVAL = 10
 # ===========================================
