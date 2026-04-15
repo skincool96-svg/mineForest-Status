@@ -1,9 +1,10 @@
 import discord
 from discord.ext import commands, tasks
 from mcstatus import JavaServer, BedrockServer
+import os
 
 # ================== CONFIG ==================
-TOKEN = "YOUR_BOT_TOKEN"
+TOKEN = os.getenv("TOKEN")  # Railway env variable
 
 SERVER_NAME = "MineForest"
 JAVA_IP = "play.mineforest.xyz"
@@ -18,6 +19,7 @@ UPDATE_INTERVAL = 10
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.guilds = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -37,9 +39,7 @@ async def get_java():
         return {
             "online": True,
             "players": f"{s.players.online}/{s.players.max}",
-            "count": s.players.online,
             "ping": round(s.latency),
-            "motd": str(s.description),
             "list": players
         }
     except:
@@ -84,7 +84,7 @@ async def build_status():
 
     embed.set_footer(text="MineForest • Auto Live")
 
-    # 🔔 ALERTS
+    # 🔔 Alerts
     channel = bot.get_channel(CHANNEL_ID)
     if channel:
         if not online and last_online:
@@ -96,7 +96,7 @@ async def build_status():
 
     return embed
 
-# 🔹 PLAYERS EMBED (FruitSMP style)
+# 🔹 PLAYERS EMBED
 async def build_players():
     try:
         server = JavaServer.lookup(f"{JAVA_IP}:{PORT}")
@@ -107,11 +107,10 @@ async def build_players():
         else:
             names = "No players online"
 
-        embed = discord.Embed(
+        return discord.Embed(
             description=f"**Players ({s.players.online}):**\n\n{names}\n\n`{JAVA_IP}`",
             color=0x2ecc71
         )
-        return embed
 
     except:
         return discord.Embed(
@@ -146,7 +145,7 @@ async def slash_status(interaction: discord.Interaction):
     embed = await build_status()
     await interaction.response.send_message(embed=embed, view=RefreshView())
 
-@bot.tree.command(name="players", description="Show online players")
+@bot.tree.command(name="players", description="Show players")
 async def slash_players(interaction: discord.Interaction):
     embed = await build_players()
     await interaction.response.send_message(embed=embed)
@@ -171,8 +170,16 @@ async def auto_update():
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-    await bot.tree.sync()
+
+    try:
+        await bot.tree.sync()
+    except Exception as e:
+        print(e)
+
     auto_update.start()
 
 # 🔹 RUN
+if not TOKEN:
+    raise Exception("TOKEN not found! Set it in Railway Variables")
+
 bot.run(TOKEN)
