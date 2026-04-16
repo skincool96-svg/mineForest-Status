@@ -8,7 +8,7 @@ import asyncio
 TOKEN = os.getenv("TOKEN")
 
 SERVER_NAME = "MineForest"
-JAVA_IP = "play.mineforest.xyz:45576"  # ✅ correct port
+JAVA_IP = "play.mineforest.xyz:45576"
 BEDROCK_IP = "play.mineforest.xyz:45576"
 
 CHANNEL_ID = 1475865990830231672
@@ -26,27 +26,41 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 status_message = None
 last_online = True
 
-# 🔹 FETCH JAVA (fixed async + timeout)
+# 🔹 SMART JAVA CHECK (fixed 100%)
 async def get_java():
     try:
         server = JavaServer.lookup(JAVA_IP)
-        s = await asyncio.wait_for(server.async_status(), timeout=5)
 
-        players = "No players online"
-        if s.players.sample:
-            players = ", ".join([p.name for p in s.players.sample])
+        try:
+            s = await asyncio.wait_for(server.async_status(), timeout=5)
 
-        return {
-            "online": True,
-            "players": f"{s.players.online}/{s.players.max}",
-            "ping": round(s.latency),
-            "list": players
-        }
+            players = "No players online"
+            if s.players.sample:
+                players = ", ".join([p.name for p in s.players.sample])
+
+            return {
+                "online": True,
+                "players": f"{s.players.online}/{s.players.max}",
+                "ping": round(s.latency),
+                "list": players
+            }
+
+        except:
+            # fallback ping
+            ping = await asyncio.wait_for(server.async_ping(), timeout=5)
+
+            return {
+                "online": True,
+                "players": "Unknown",
+                "ping": round(ping),
+                "list": "Player list unavailable"
+            }
+
     except Exception as e:
         print("Java error:", e)
         return {"online": False}
 
-# 🔹 FETCH BEDROCK
+# 🔹 BEDROCK CHECK
 async def get_bedrock():
     try:
         server = BedrockServer.lookup(BEDROCK_IP)
@@ -85,7 +99,7 @@ async def build_status():
 
     embed.set_footer(text="MineForest • Live")
 
-    # 🔔 Alerts
+    # Alerts
     channel = bot.get_channel(CHANNEL_ID)
     if channel:
         if not online and last_online:
@@ -118,7 +132,7 @@ async def build_players():
             color=0xe74c3c
         )
 
-# 🔘 BUTTON VIEW (fixed)
+# 🔘 BUTTON
 class RefreshView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -140,7 +154,7 @@ async def players(ctx):
     embed = await build_players()
     await ctx.send(embed=embed)
 
-# 🔹 SLASH COMMANDS (FIXED)
+# 🔹 SLASH COMMANDS
 @bot.tree.command(name="status", description="Check server status")
 async def slash_status(interaction: discord.Interaction):
     await interaction.response.defer()
@@ -173,6 +187,12 @@ async def auto_update():
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
+
+    # 🎮 ACTIVITY STATUS
+    await bot.change_presence(
+        activity=discord.Game(name="play.mineforest.xyz")
+    )
+
     try:
         await bot.tree.sync()
     except Exception as e:
